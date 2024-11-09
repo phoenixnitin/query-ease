@@ -1,0 +1,60 @@
+Schema: public
+  Table: subject
+    Columns:
+      subject_id: integer
+      subject_name: character varying 100
+      subject_code: character varying 10
+      dept_id: integer
+      teacher_id: integer
+    Relations:
+      dept_id in subject references dept_id in department
+      teacher_id in subject references teacher_id in teacher
+  Table: department
+    Columns:
+      dept_id: integer
+      dept_name: character varying 100
+      dept_code: character varying 10
+      location: character varying 100
+    No relations found.
+  Table: student
+    Columns:
+      student_id: integer
+      student_name: character varying 100
+      age: integer
+      dept_id: integer
+    Relations:
+      dept_id in student references dept_id in department
+  Table: teacher
+    Columns:
+      teacher_id: integer
+      teacher_name: character varying 100
+      experience: integer
+      dept_id: integer
+    Relations:
+      dept_id in teacher references dept_id in department
+  Table: enrollment
+    Columns:
+      enrollment_id: integer
+      student_id: integer
+      subject_id: integer
+      enrollment_date: date None
+      grade: character varying 2
+    Relations:
+      student_id in enrollment references student_id in student
+      subject_id in enrollment references subject_id in subject
+  Table: conversation_history
+    Columns:
+      id: integer
+      username: character varying 100
+      question: text None
+      answer: text None
+      timestamp: timestamp without time zone None
+    No relations found.
+  Table: chat_history
+    Columns:
+      id: integer
+      username: character varying 50
+      question: text None
+      response: text None
+      timestamp: timestamp without time zone None
+    No relations found.
