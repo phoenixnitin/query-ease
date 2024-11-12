@@ -1,0 +1,45 @@
+Schema: public
+  Table: country_flag
+    Columns:
+      code2: character 2
+      emoji: text None
+      unicode: text None
+    Relations:
+      No relations found.
+  Table: city
+    Columns:
+      id: integer
+      name: text None
+      country_code: character 3
+      district: text None
+      population: integer
+      local_name: text None
+    Relations:
+      country_code in city references code in country
+  Table: country
+    Columns:
+      code: character 3
+      name: text None
+      continent: text None
+      region: text None
+      surface_area: real None
+      indep_year: smallint None
+      population: integer
+      life_expectancy: real None
+      gnp: numeric None
+      gnp_old: numeric None
+      local_name: text None
+      government_form: text None
+      head_of_state: text None
+      capital: integer
+      code2: character 2
+    Relations:
+      capital in country references id in city
+  Table: country_language
+    Columns:
+      country_code: character 3
+      language: text None
+      is_official: boolean None
+      percentage: real None
+    Relations:
+      country_code in country_language references code in country

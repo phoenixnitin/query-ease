@@ -1,0 +1,7 @@
+active: local
+
+local:
+  api:
+    url: ''
+    key: ''
+    secret: ''
