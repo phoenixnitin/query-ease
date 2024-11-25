@@ -44,24 +44,22 @@ class Database:
         """
         Method to validate query
         """
-        status = False
+        status , error_msg = False , str
         query_type = cls.__get_query_type(query)
         cls.__logger.info(f'validating query...')
         if query_type == 'SELECT':
-            if cls.__check_query_syntax_against_database(query):
-                status = True
-            else:
-                cls.__logger.info(f'query syntax is incorrect')
+            status, error_msg = cls.__check_query_syntax_against_database(query)
         else:
-            cls.__logger.info(f'query is not select query. given query type: {query_type}')
-        return status
+            error_msg = 'query is not select query. given query type: {query_type}'
+            cls.__logger.error(error_msg)
+        return status,error_msg
 
     @classmethod
     def execute_query(cls, query, commit=False):
         """
         Method to execute query
         """
-        status, result = False, list()
+        status, result ,error_msg = False, list(), str
         query_type = cls.__get_query_type(query)
         connection = cls.get_connection()
         cursor = connection.cursor()
@@ -73,10 +71,11 @@ class Database:
                 result = cursor.fetchall()
             status = True
         except Exception as exception:
+            error_msg = exception 
             cls.__logger.exception(exception)
         finally:
             cursor.close()
-            return status, result
+            return status, result, error_msg
 
     @classmethod
     def __check_query_syntax_against_database(cls, query):
@@ -84,8 +83,8 @@ class Database:
         Method to check query syntax against database using EXPLAIN
         """
         explain_query = f'EXPLAIN {query}'
-        status, _ = cls.execute_query(explain_query)
-        return status
+        status, _ , error_msg = cls.execute_query(explain_query)
+        return status, error_msg
 
     @classmethod
     def __get_query_type(cls, query):

@@ -1,7 +1,8 @@
 active: local
 
 local:
+  API_KEY: ""
   api:
-    url: ''
-    key: ''
-    secret: ''
+    url: ""
+    key: ""
+    secret: ""

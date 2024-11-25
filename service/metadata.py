@@ -1,6 +1,6 @@
 from logger import Logger
 from utility import Database
-
+from dotenv import load_dotenv
 
 class Metadata:
     __logger = Logger.get_logger()
@@ -15,7 +15,7 @@ class Metadata:
         query = """SELECT schema_name 
                 FROM information_schema.schemata
                 WHERE schema_name NOT IN ('pg_catalog', 'information_schema','pg_toast');"""
-        _, result = Database.execute_query(query)
+        _, result,_ = Database.execute_query(query)
         for item in result:
             schema_names.append(item[0])
         cls.__logger.info(f'fetched all schema names. number of schema names: {len(schema_names)}')
@@ -31,7 +31,7 @@ class Metadata:
         query = f"""SELECT table_name 
                 FROM information_schema.tables 
                 WHERE table_schema = '{schema_name}';"""
-        _, result = Database.execute_query(query)
+        _, result,_ = Database.execute_query(query)
         for item in result:
             table_names.append(item[0])
         cls.__logger.info(f'fetched all table names. number of tables: {len(table_names)}')
@@ -46,7 +46,7 @@ class Metadata:
         query = f"""SELECT column_name, data_type, character_maximum_length
                 FROM information_schema.columns 
                 WHERE table_schema = '{schema_name}' AND table_name = '{table_name}';"""
-        _, result = Database.execute_query(query)
+        _, result,_ = Database.execute_query(query)
         cls.__logger.info(f'fetched column details. number of columns: {len(result)}')
         return result
 
@@ -69,7 +69,7 @@ class Metadata:
                   ON ccu.constraint_name = tc.constraint_name
                 WHERE tc.constraint_type = 'FOREIGN KEY' AND 
                 tc.table_schema = '{schema_name}' AND tc.table_name = '{table_name}';"""
-        _, result = Database.execute_query(query)
+        _, result,_ = Database.execute_query(query)
         cls.__logger.info(f'fetched relationship details. number of relationships: {len(result)}')
         return result
 
