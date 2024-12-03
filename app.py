@@ -1,128 +1,152 @@
 import streamlit as st
-import psycopg2
-from datetime import date
-from dotenv import load_dotenv
-import os
+from st_aggrid import AgGrid, GridOptionsBuilder,GridUpdateMode
+import app
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-# Function to connect to the PostgreSQL database
-def connect_to_db():
-    return psycopg2.connect(
-        host=os.getenv("host"),
-        database=os.getenv("database"),
-        user=os.getenv("user"), 
-        password=os.getenv("password"),
-        port = os.getenv("port")
+def sidebar():
+    st.sidebar.title("DB Details")
+    with st.sidebar.form(key='db_details'):
+        host = st.text_input('Host', key="db_host")
+        username = st.text_input('Username', key="db_user")
+        password = st.text_input('Password', key="db_password", type='password')
+        port = st.text_input('Port', key="db_port")
+        database = st.text_input('Database', key="db_name")
+        submit_button = st.form_submit_button(label='Submit')
+        if submit_button:
+            with st.spinner("generating meta data and vector storage ..."):
+                app.initialize_app_session(host, port, database, username, password)
+                st.success("Database details updated!")
+                return True 
+        
+def show_dataframe (df,idx):
+    gb = GridOptionsBuilder.from_dataframe(df)
+    gb.configure_default_column(filter='agTextColumnFilter' , sortable=True, editable=False)
+    grid_options = gb.build()
+    grid_options["domLayout"] = "autoHeight" 
+    row_count = len(df)
+    row_height = 25 
+    grid_height = row_count * row_height  
+    grid_height =min(max(row_count * row_height, 200), 400)  
+
+    response = AgGrid(
+        df,
+        gridOptions=grid_options,
+        height=grid_height,
+        width="100%",
+        enable_enterprise_modules=True,
+        update_mode=GridUpdateMode.MODEL_CHANGED,  
     )
 
-# Create a table for conversation history (if not exists)
-def setup_db():
-    conn = connect_to_db()
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS conversation_history
-                (id SERIAL PRIMARY KEY, username VARCHAR(100), question TEXT, answer TEXT, date DATE)''')
-    conn.commit()
-    c.close()
-    conn.close()
+    updated_df = pd.DataFrame(response["data"]) 
+    st.download_button(
+                        label="Download",
+                        data=app.get_excel_from_df(updated_df),
+                        file_name="chat_data.xlsx",
+                        mime="application/vnd.ms-excel",
+                        icon='📥',
+                        key=f"download_button_{idx}"
+                    )
+    # CSS for removing excess padding
+    # st.markdown(
+    # """
+    # <style>
+    # .css-1e5imcs {padding: 0; margin: 0;}  /* Adjust padding/margin around container */
+    # .css-18e3th9 {padding: 0; margin: 0;}  /* Adjust padding/margin around grid */
+    # </style>
+    # """,
+    # unsafe_allow_html=True,
+    # )
 
-# Sidebar for admin input and displaying chat history
-def sidebar(role):
-    
-    if role == 'Admin':
-        with st.sidebar.form(key='db_details'):
-            st.text_input('Host', key="db_host")
-            st.text_input('Username', key="db_user")
-            st.text_input('Password', key="db_password", type='password')
-            st.text_input('Port', key="db_port")
-            st.text_input('Database', key="db_name")
-            submit_button = st.form_submit_button(label='Submit')
-            if submit_button:
-                st.success("Database details updated!")
-    
-    st.sidebar.title("Conversation History")
-    chat_days = fetch_conversations_dates()
-    for chat_date in chat_days:
-        formatted_chat_date = chat_date.strftime("%Y-%m-%d")
-        click = st.sidebar.button(f"{formatted_chat_date}")
-        if click :
-            chats = fetch_conversations_of_date(formatted_chat_date)
-            st.header(f"chat history of date : {formatted_chat_date}")
-            for question, answer in chats :
-                st.write(f"**You**: {question}")
-                st.write(f"**Bot**: {answer}")
+    st.markdown(
+    """
+    <style>
+    .css-1e5imcs {padding: 0; margin: 0;}  /* Adjust padding/margin around container */
+    .css-18e3th9 {padding: 0; margin: 0;}  /* Adjust padding/margin around grid */
+    .ag-theme-alpine .ag-root-wrapper {overflow: hidden;} /* Hide overflow to prevent extra space */
+    </style>
+    """,
+    unsafe_allow_html=True,
+    )
 
-def fetch_conversations_of_date(target_date):
-    conn = connect_to_db()
-    c = conn.cursor()
-    query = "SELECT question, answer FROM conversation_history where date = %s"
-    c.execute(query,(target_date,))
-    conversations = c.fetchall()
-    print("conversion  : ",conversations)
-    conn.close()
-    return conversations
+    analyse_graph = st.checkbox("Analysed using graphs...",key={idx})
+    if analyse_graph :
+        generate_visualizations(df=df)
 
-# Fetching conversation history from PostgreSQL DB
-def fetch_conversations_dates():
-    conn = connect_to_db()
-    c = conn.cursor()
-    c.execute("SELECT distinct date FROM conversation_history ORDER BY date DESC")
-    conversations = c.fetchall()
-    conn.close()
-    return conversations
-
-# Main chat interface
-def chat_interface(username):
-    st.title("QueryEase : Business Insights at Fingertips")
+def chat_interface():
 
     if 'history' not in st.session_state:
         st.session_state['history'] = []
-    
+
     with st.form(key='user_input_form', clear_on_submit=True):
         user_input = st.text_input("Ask a question:")
         submit = st.form_submit_button(label="Send")
 
     if submit and user_input:
-        response = generate_response(user_input)
+        with st.spinner("Fetching llm response..."):
+            response = app.execute_prompt(user_input)
         st.session_state['history'].append((user_input, response))
 
-        # Save conversation to PostgreSQL
-        today = date.today()
-        print("todays date : ",today)
-        save_conversation(username, user_input, response, today)
-
-    # Display the chat history
-    for question, answer in st.session_state['history']:
-        st.write(f"**You**: {question}")
-        st.write(f"**Bot**: {answer}")
     
-    # Scroll to the bottom automatically
+    for idx, (question, answer) in enumerate(reversed(st.session_state['history'])):
+        st.write(f"**You**: {question}")
+        if(answer[0]):
+            show_dataframe(answer[1].head(10),idx)
+            # st.dataframe(answer[1].head(10))
+        else:
+            st.write(f"**Bot**: {answer[1]}")
+
+    
     st.write("<div id='bottom'></div>", unsafe_allow_html=True)
     st.markdown('<script>window.scrollTo(0, document.body.scrollHeight);</script>', unsafe_allow_html=True)
 
-# Save conversation to PostgreSQL DB
-def save_conversation(username, question, answer, date):
-    conn = connect_to_db()
-    c = conn.cursor()
-    c.execute("INSERT INTO conversation_history (username, question, answer, date) VALUES (%s, %s, %s, %s)",
-              (username, question, answer, date))
-    conn.commit()
-    conn.close()
+def generate_visualizations(df):
+    numeric_cols = df.select_dtypes(include=['number']).columns
+    categorical_cols = df.select_dtypes(include=['object', 'category']).columns
 
-# Placeholder function for generating bot responses
-def generate_response(question):
-    return "Hello Bro, How its going?."
+    if len(numeric_cols) > 0:  
+        for col in numeric_cols:
+            st.subheader(f'Histogram for {col}')
+            fig, ax = plt.subplots(figsize=(8, 6))
+            sns.histplot(df[col], kde=True, ax=ax)
+            ax.set_title(f'Histogram for {col}')
+            ax.set_xlabel(col)
+            ax.set_ylabel('Frequency')
+            st.pyplot(fig)
+        
+        if len(numeric_cols) > 1:
+            st.subheader('Correlation Matrix')
+            corr = df[numeric_cols].corr()
+            fig, ax = plt.subplots(figsize=(10, 8))
+            sns.heatmap(corr, annot=True, cmap='coolwarm', fmt=".2f", ax=ax)
+            ax.set_title('Correlation Matrix')
+            st.pyplot(fig)
 
-# Main function
+    if len(categorical_cols) > 0:
+        for col in categorical_cols:
+            st.subheader(f'Count Plot for {col}')
+            fig, ax = plt.subplots(figsize=(8, 6))
+            sns.countplot(data=df, x=col, ax=ax)
+            ax.set_title(f'Count Plot for {col}')
+            ax.set_xlabel(col)
+            ax.set_ylabel('Count')
+            st.pyplot(fig)
+
+    if len(numeric_cols) > 0 and len(categorical_cols) > 0:
+        for cat_col in categorical_cols:
+            for num_col in numeric_cols:
+                st.subheader(f'Boxplot of {num_col} by {cat_col}')
+                fig, ax = plt.subplots(figsize=(8, 6))
+                sns.boxplot(data=df, x=cat_col, y=num_col, ax=ax)
+                ax.set_title(f'Boxplot of {num_col} by {cat_col}')
+                ax.set_xlabel(cat_col)
+                ax.set_ylabel(num_col)
+                st.pyplot(fig)
 def main():
-    load_dotenv()
-    setup_db()  # Ensure DB and table are set up
-
-    # Sidebar and user role selection
-    # role = st.sidebar.radio("Role", ['Admin', 'User'])
-    st.sidebar.title("Input Panel")
-    username = st.sidebar.text_input("Enter your username:", value="User1")
-    sidebar('Admin')
-
-    chat_interface(username)
+    st.title("QueryEase : Business Insights at Fingertips")
+    sidebar()
+    chat_interface()
 
 if __name__ == "__main__":
     main()
