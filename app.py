@@ -95,7 +95,7 @@ def chat_interface():
             show_dataframe(answer[1].head(10),idx)
             # st.dataframe(answer[1].head(10))
         else:
-            st.write(f"**Bot**: {answer[1]}")
+            st.write(f"**LLM**: {answer[1]}")
 
     
     st.write("<div id='bottom'></div>", unsafe_allow_html=True)
